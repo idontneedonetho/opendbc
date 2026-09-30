@@ -1,7 +1,10 @@
 import unittest
 
+from opendbc.can import CANPacker
 from opendbc.car import Bus
 from opendbc.car.structs import CarParams
+from opendbc.car.toyota.carstate import CarState
+from opendbc.car.toyota.interface import CarInterface
 from opendbc.car.fw_versions import build_fw_dict
 from opendbc.car.toyota.fingerprints import FW_VERSIONS
 from opendbc.car.toyota.values import CAR, DBC, ToyotaFlags, FW_QUERY_CONFIG, PLATFORM_CODE_ECUS, \
@@ -54,6 +57,50 @@ class TestToyotaInterfaces(unittest.TestCase):
 
         if car_model not in (CAR.TOYOTA_PRIUS_V, CAR.LEXUS_CTH):
           assert Ecu.eps in present_ecus
+
+
+class TestToyotaSDSU(unittest.TestCase):
+  def sdsu_fingerprint(self):
+    return {0: {0x2FF: b'\x00' * 8}, 1: {}, 2: {}}
+
+  def test_sdsu_detection(self):
+    # TSS-P car with an sDSU dongle: openpilot longitudinal + stop and go
+    CP = CarInterface.get_params(CAR.TOYOTA_COROLLA, self.sdsu_fingerprint(), [], False, False, False)
+    assert CP.flags & ToyotaFlags.SDSU.value
+    assert CP.openpilotLongitudinalControl
+    assert CP.autoResumeSng
+    assert CP.minEnableSpeed < 0
+
+    # NO_DSU TSS-P car (radar-based ACC): dongle not detected
+    CP = CarInterface.get_params(CAR.TOYOTA_CAMRY, self.sdsu_fingerprint(), [], False, False, False)
+    assert not (CP.flags & ToyotaFlags.SDSU.value)
+    assert not CP.openpilotLongitudinalControl
+
+    # no dongle: TSS-P car keeps stock longitudinal
+    CP = CarInterface.get_params(CAR.TOYOTA_COROLLA, {0: {}, 1: {}, 2: {}}, [], False, False, False)
+    assert not (CP.flags & ToyotaFlags.SDSU.value)
+    assert not CP.openpilotLongitudinalControl
+
+    # TSS2 car: dongle not detected, longitudinal works via the camera anyway
+    CP = CarInterface.get_params(CAR.TOYOTA_CAMRY_TSS2, self.sdsu_fingerprint(), [], False, False, False)
+    assert not (CP.flags & ToyotaFlags.SDSU.value)
+    assert CP.openpilotLongitudinalControl
+
+  def test_sdsu_distance_button(self):
+    CP = CarParams(carFingerprint=CAR.TOYOTA_COROLLA.value, flags=ToyotaFlags.SDSU.value)
+    parsers = CarState.get_can_parsers(CP)
+    assert Bus.sdsu in parsers
+
+    CP2 = CarParams(carFingerprint=CAR.TOYOTA_COROLLA.value)
+    assert Bus.sdsu not in CarState.get_can_parsers(CP2)
+
+    cs = CarState(CP)
+    packer = CANPacker("toyota_sdsu")
+    for btn in (1, 0, 1):
+      addr, dat, bus = packer.make_can_msg("SDSU", 0, {"FD_BUTTON": btn})
+      parsers[Bus.sdsu].update([1, [(addr, dat, bus)]])
+      cs.update(parsers)
+      assert cs.distance_button == btn
 
 
 class TestToyotaFingerprint(unittest.TestCase):
