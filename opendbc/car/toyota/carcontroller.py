@@ -247,6 +247,11 @@ class CarController(CarControllerBase):
         elif net_acceleration_request_min > 0.3:
           self.permit_braking = False
 
+        # non-TSS2 (sDSU) cars: skip the pitch/delay compensation, the stock
+        # PCM responds differently (ported from the DragonPilot fork)
+        if not (self.CP.flags & ToyotaFlags.TSS2):
+          pcm_accel_cmd = actuators.accel
+
         pcm_accel_cmd = float(np.clip(pcm_accel_cmd, self.params.ACCEL_MIN, self.params.ACCEL_MAX))
 
         main_accel_cmd = 0. if self.CP.flags & ToyotaFlags.SECOC.value else pcm_accel_cmd

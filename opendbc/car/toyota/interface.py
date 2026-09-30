@@ -97,13 +97,24 @@ class CarInterface(CarInterfaceBase):
       if alpha_long:
         ret.flags |= ToyotaFlags.DISABLE_RADAR.value
 
+    # Detect the sDSU dongle, which intercepts the ACC command from the DSU
+    # allowing openpilot to send it to TSS-P cars that otherwise have no
+    # openpilot longitudinal support
+    sdsu_active = False
+    if not (ret.flags & (ToyotaFlags.RADAR_ACC | ToyotaFlags.NO_DSU)) and 0x2FF in fingerprint[0]:
+      sdsu_active = True
+      stop_and_go = True
+      ret.flags |= ToyotaFlags.SDSU.value
+      ret.alphaLongitudinalAvailable = False
+
     # openpilot longitudinal enabled by default:
     #  - TSS2 cars with camera sending ACC_CONTROL where we can block it
+    #  - TSS-P cars with an sDSU dongle (converts it to the stock ACC protocol)
     # openpilot longitudinal behind alpha long toggle:
     #  - TSS2 radar ACC cars (disables radar)
-
     ret.openpilotLongitudinalControl = ((bool(ret.flags & ToyotaFlags.TSS2) and not (ret.flags & ToyotaFlags.RADAR_ACC)) or
-                                        bool(ret.flags & ToyotaFlags.DISABLE_RADAR.value))
+                                        bool(ret.flags & ToyotaFlags.DISABLE_RADAR.value) or
+                                        sdsu_active)
 
     ret.autoResumeSng = ret.openpilotLongitudinalControl
 
