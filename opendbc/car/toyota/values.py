@@ -75,6 +75,11 @@ class ToyotaFlags(IntFlag):
   RAISED_ACCEL_LIMIT = 1024
   SECOC = 2048
 
+  # Detected flags
+  # sDSU dongle (RetroPilot smart_dsu) present on the bus, intercepting the
+  # stock ACC command so openpilot can drive TSS-P cars
+  SDSU = 4096
+
   # deprecated flags
   # these cars are speculated to allow stop and go when the DSU is unplugged
   SNG_WITHOUT_DSU_DEPRECATED = 512

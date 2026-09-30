@@ -5,6 +5,7 @@ from opendbc.car import Bus, DT_CTRL, create_button_events, structs
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.common.filter_simple import FirstOrderFilter
 from opendbc.car.interfaces import CarStateBase
+from opendbc.car.toyota.sdsu import SDSU
 from opendbc.car.toyota.values import ToyotaFlags, CAR, DBC, STEER_THRESHOLD, EPS_SCALE
 
 ButtonType = structs.CarState.ButtonEvent.Type
@@ -50,6 +51,8 @@ class CarState(CarStateBase):
     self.lkas_hud = {}
     self.gvc = 0.0
     self.secoc_synchronization = None
+
+    self.sdsu = SDSU(CP.flags)
 
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.pt]
@@ -198,6 +201,14 @@ class CarState(CarStateBase):
 
         buttonEvents += create_button_events(self.distance_button, prev_distance_button, {1: ButtonType.gapAdjustCruise})
 
+    elif self.sdsu.enabled:
+      # the follow distance button signal as forwarded by the sdsu
+      self.sdsu.update_states(can_parsers[Bus.sdsu])
+      prev_distance_button = self.distance_button
+      self.distance_button = self.sdsu.dist_btn
+
+      buttonEvents += create_button_events(self.distance_button, prev_distance_button, {1: ButtonType.gapAdjustCruise})
+
     ret.buttonEvents = buttonEvents
     return ret
 
@@ -207,7 +218,12 @@ class CarState(CarStateBase):
       ("BLINKERS_STATE", float('nan')),
     ]
 
-    return {
+    parsers = {
       Bus.pt: CANParser(DBC[CP.carFingerprint][Bus.pt], pt_messages, 0),
       Bus.cam: CANParser(DBC[CP.carFingerprint][Bus.pt], [], 2),
     }
+
+    if CP.flags & ToyotaFlags.SDSU.value:
+      parsers[Bus.sdsu] = CANParser("toyota_sdsu", [("SDSU", 100)], 0)
+
+    return parsers

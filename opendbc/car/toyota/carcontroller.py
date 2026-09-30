@@ -34,7 +34,7 @@ MAX_USER_TORQUE = 500
 
 
 def get_long_tune(CP, params):
-  if CP.flags & ToyotaFlags.TSS2:
+  if CP.flags & (ToyotaFlags.TSS2 | ToyotaFlags.SDSU):
     kiBP = [2., 5.]
     kiV = [0.5, 0.25]
   else:
