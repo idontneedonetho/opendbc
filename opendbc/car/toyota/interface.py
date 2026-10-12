@@ -59,14 +59,20 @@ class CarInterface(CarInterfaceBase):
 
     if candidate == CAR.TOYOTA_PRIUS:
       stop_and_go = True
-      # Only give steer angle deadzone to for bad angle sensor prius
+      # 2021+ TSS2 steering rack (EPS 8965B47070) swapped into a TSS-P car.
+      # Supported by this fork: keep torque control on the TSS-P DBC (sDSU long
+      # stays enabled) and treat the EPS like the native TSS2 rack — no dashcam
+      # gate, no "bad angle sensor" delay/deadzone. The actuator delay is
+      # measured online by lagd.
+      # TODO (safety-critical, verify on this car): EPS_SCALE (66 TSS-P vs 73
+      # TSS2) and steerRatio (15.74 vs 13.4) should match the swapped rack.
+      swapped_tss2_rack = any(fw.ecu == "eps" and fw.fwVersion == b'8965B47070\x00\x00\x00\x00\x00\x00'
+                              for fw in car_fw)
+      # Only give steer angle deadzone to bad angle sensor prius
       for fw in car_fw:
-        if fw.ecu == "eps" and not fw.fwVersion == b'8965B47060\x00\x00\x00\x00\x00\x00':
+        if fw.ecu == "eps" and not fw.fwVersion == b'8965B47060\x00\x00\x00\x00\x00\x00' and not swapped_tss2_rack:
           ret.steerActuatorDelay = 0.25
           CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning, steering_angle_deadzone_deg=0.2)
-        # 2021+ TSS2 steering rack swapped into a TSS-P car, not supported
-        if fw.ecu == "eps" and fw.fwVersion == b'8965B47070\x00\x00\x00\x00\x00\x00':
-          ret.dashcamOnly = True
 
     elif candidate in (CAR.LEXUS_RX, CAR.LEXUS_RX_TSS2):
       stop_and_go = True
