@@ -64,8 +64,9 @@ class CarInterface(CarInterfaceBase):
       # stays enabled) and treat the EPS like the native TSS2 rack — no dashcam
       # gate, no "bad angle sensor" delay/deadzone. The actuator delay is
       # measured online by lagd.
-      # TODO (safety-critical, verify on this car): EPS_SCALE (66 TSS-P vs 73
-      # TSS2) and steerRatio (15.74 vs 13.4) should match the swapped rack.
+      # TODO (safety-critical, verify on this car): this fork bets on the TSS2
+      # rack values (EPS_SCALE=73, steerRatio=13.4, set in values.py) — confirm
+      # against measured steering / EPS torque before heavy onroad use.
       swapped_tss2_rack = any(fw.ecu == "eps" and fw.fwVersion == b'8965B47070\x00\x00\x00\x00\x00\x00'
                               for fw in car_fw)
       # Only give steer angle deadzone to bad angle sensor prius

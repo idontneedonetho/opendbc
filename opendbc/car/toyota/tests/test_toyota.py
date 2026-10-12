@@ -120,6 +120,11 @@ class TestToyotaSwappedTSS2Rack(unittest.TestCase):
     assert not CP.dashcamOnly
     self.assertAlmostEqual(CP.steerActuatorDelay, 0.12)
     self.assertAlmostEqual(CP.lateralTuning.torque.steeringAngleDeadzoneDeg, 0.0)
+    # TSS2-rack torque values (bet, verify on car)
+    self.assertAlmostEqual(CP.steerRatio, 13.4, places=2)
+    from opendbc.car.toyota.values import EPS_SCALE
+    self.assertEqual(CP.safetyConfigs[0].safetyParam & 0xff, EPS_SCALE[CAR.TOYOTA_PRIUS])
+    self.assertEqual(CP.safetyConfigs[0].safetyParam & 0xff, 73)
 
   def test_swapped_rack_keeps_sdsu_long(self):
     CP = CarInterface.get_params(CAR.TOYOTA_PRIUS, self.sdsu_fp, self.eps_car_fw(self.TSS2_RACK_FW), False, False, False)
