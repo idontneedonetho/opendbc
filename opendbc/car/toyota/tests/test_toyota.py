@@ -125,6 +125,11 @@ class TestToyotaSwappedTSS2Rack(unittest.TestCase):
     from opendbc.car.toyota.values import EPS_SCALE
     self.assertEqual(CP.safetyConfigs[0].safetyParam & 0xff, EPS_SCALE[CAR.TOYOTA_PRIUS])
     self.assertEqual(CP.safetyConfigs[0].safetyParam & 0xff, 73)
+    # TSS2 torque tune: the TSS-P DBC maps to TSS-P params (factor 1.60), but the
+    # swapped rack is a TSS2 rack (measured factor ~1.82-1.97), so re-tune with the
+    # native TSS2 values (factor 1.9726, friction 0.171)
+    self.assertAlmostEqual(CP.lateralTuning.torque.latAccelFactor, 1.9726, places=3)
+    self.assertAlmostEqual(CP.lateralTuning.torque.friction, 0.170968, places=4)
 
   def test_swapped_rack_keeps_sdsu_long(self):
     CP = CarInterface.get_params(CAR.TOYOTA_PRIUS, self.sdsu_fp, self.eps_car_fw(self.TSS2_RACK_FW), False, False, False)
@@ -137,6 +142,9 @@ class TestToyotaSwappedTSS2Rack(unittest.TestCase):
     assert not CP.dashcamOnly
     self.assertAlmostEqual(CP.steerActuatorDelay, 0.12)
     self.assertAlmostEqual(CP.lateralTuning.torque.steeringAngleDeadzoneDeg, 0.0)
+    # TSS-P rack keeps TSS-P torque tune (the TSS2 override must not leak)
+    self.assertAlmostEqual(CP.lateralTuning.torque.latAccelFactor, 1.60, places=2)
+    self.assertAlmostEqual(CP.lateralTuning.torque.friction, 0.151515, places=4)
 
   def test_bad_sensor_prius_still_delayed(self):
     # Original bad-angle-sensor behavior preserved for genuine 2016 cars

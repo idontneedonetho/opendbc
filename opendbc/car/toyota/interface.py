@@ -1,4 +1,5 @@
 from opendbc.car import Bus, structs, get_safety_config, uds
+from opendbc.car.interfaces import get_torque_params
 from opendbc.car.toyota.carstate import CarState
 from opendbc.car.toyota.carcontroller import CarController
 from opendbc.car.toyota.radar_interface import RadarInterface
@@ -74,6 +75,19 @@ class CarInterface(CarInterfaceBase):
         if fw.ecu == "eps" and not fw.fwVersion == b'8965B47060\x00\x00\x00\x00\x00\x00' and not swapped_tss2_rack:
           ret.steerActuatorDelay = 0.25
           CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning, steering_angle_deadzone_deg=0.2)
+
+      if swapped_tss2_rack:
+        # Re-tune the lateral torque for the TSS2 rack. The TSS-P DBC/fingerprint
+        # above maps to the TSS-P torque params (latAccelFactor 1.60, friction
+        # 0.152), which undercommands the stiffer TSS2 rack: measured on this car
+        # the true factor is ~1.82-1.97 (latAccel/torque, steady turn), i.e. the
+        # controller was commanding ~17-20% less EPS torque than the rack needed,
+        # and torqued's online adaptation never recovered (filtered stuck at 1.60).
+        # Swap in the native TSS2 Prius values (factor 1.9726, friction 0.171).
+        tss2 = get_torque_params()['TOYOTA_PRIUS_TSS2']
+        ret.lateralTuning.torque.latAccelFactor = tss2['LAT_ACCEL_FACTOR']
+        ret.lateralTuning.torque.friction = tss2['FRICTION']
+        ret.maxLateralAccel = tss2['MAX_LAT_ACCEL_MEASURED']
 
     elif candidate in (CAR.LEXUS_RX, CAR.LEXUS_RX_TSS2):
       stop_and_go = True
