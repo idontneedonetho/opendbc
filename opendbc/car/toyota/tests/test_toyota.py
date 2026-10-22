@@ -103,6 +103,57 @@ class TestToyotaSDSU(unittest.TestCase):
       assert cs.distance_button == btn
 
 
+class TestToyotaSwappedTSS2Rack(unittest.TestCase):
+  # 2021+ TSS2 steering rack swapped into a TSS-P Prius (EPS 8965B47070)
+  TSS2_RACK_FW = b'8965B47070\x00\x00\x00\x00\x00\x00'
+  GOOD_EPS_FW = b'8965B47060\x00\x00\x00\x00\x00\x00'
+  BAD_SENSOR_FW = b'8965B47021\x00\x00\x00\x00\x00\x00'
+  empty_fp = {0: {}, 1: {}, 2: {}}
+  sdsu_fp = {0: {0x2FF: b'\x00' * 8}, 1: {}, 2: {}}
+
+  def eps_car_fw(self, fw):
+    return [CarParams.CarFw(ecu="eps", fwVersion=fw, address=0x7a1, subAddress=0)]
+
+  def test_swapped_rack_supported(self):
+    # No dashcam gate, treated like a native TSS2 EPS: no delay bump, no deadzone
+    CP = CarInterface.get_params(CAR.TOYOTA_PRIUS, self.empty_fp, self.eps_car_fw(self.TSS2_RACK_FW), False, False, False)
+    assert not CP.dashcamOnly
+    self.assertAlmostEqual(CP.steerActuatorDelay, 0.12)
+    self.assertAlmostEqual(CP.lateralTuning.torque.steeringAngleDeadzoneDeg, 0.0)
+    # TSS2-rack torque values (bet, verify on car)
+    self.assertAlmostEqual(CP.steerRatio, 13.4, places=2)
+    from opendbc.car.toyota.values import EPS_SCALE
+    self.assertEqual(CP.safetyConfigs[0].safetyParam & 0xff, EPS_SCALE[CAR.TOYOTA_PRIUS])
+    self.assertEqual(CP.safetyConfigs[0].safetyParam & 0xff, 73)
+    # TSS2 torque tune: the TSS-P DBC maps to TSS-P params (factor 1.60), but the
+    # swapped rack is a TSS2 rack (measured factor ~1.82-1.97), so re-tune with the
+    # native TSS2 values (factor 1.9726, friction 0.171)
+    self.assertAlmostEqual(CP.lateralTuning.torque.latAccelFactor, 1.9726, places=3)
+    self.assertAlmostEqual(CP.lateralTuning.torque.friction, 0.170968, places=4)
+
+  def test_swapped_rack_keeps_sdsu_long(self):
+    CP = CarInterface.get_params(CAR.TOYOTA_PRIUS, self.sdsu_fp, self.eps_car_fw(self.TSS2_RACK_FW), False, False, False)
+    assert not CP.dashcamOnly
+    assert CP.flags & ToyotaFlags.SDSU.value
+    assert CP.openpilotLongitudinalControl
+
+  def test_good_sensor_prius_unchanged(self):
+    CP = CarInterface.get_params(CAR.TOYOTA_PRIUS, self.empty_fp, self.eps_car_fw(self.GOOD_EPS_FW), False, False, False)
+    assert not CP.dashcamOnly
+    self.assertAlmostEqual(CP.steerActuatorDelay, 0.12)
+    self.assertAlmostEqual(CP.lateralTuning.torque.steeringAngleDeadzoneDeg, 0.0)
+    # TSS-P rack keeps TSS-P torque tune (the TSS2 override must not leak)
+    self.assertAlmostEqual(CP.lateralTuning.torque.latAccelFactor, 1.60, places=2)
+    self.assertAlmostEqual(CP.lateralTuning.torque.friction, 0.151515, places=4)
+
+  def test_bad_sensor_prius_still_delayed(self):
+    # Original bad-angle-sensor behavior preserved for genuine 2016 cars
+    CP = CarInterface.get_params(CAR.TOYOTA_PRIUS, self.empty_fp, self.eps_car_fw(self.BAD_SENSOR_FW), False, False, False)
+    assert not CP.dashcamOnly
+    self.assertAlmostEqual(CP.steerActuatorDelay, 0.25)
+    self.assertAlmostEqual(CP.lateralTuning.torque.steeringAngleDeadzoneDeg, 0.2)
+
+
 class TestToyotaFingerprint(unittest.TestCase):
   def test_non_essential_ecus(self):
     # Ensures only the cars that have multiple engine ECUs are in the engine non-essential ECU list
