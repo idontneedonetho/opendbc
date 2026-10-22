@@ -237,7 +237,10 @@ class CAR(Platforms):
       ToyotaCarDocs("Toyota Prius 2017-20", video="https://www.youtube.com/watch?v=8zopPJI8XQ0"),
       ToyotaCarDocs("Toyota Prius Prime 2017-20", video="https://www.youtube.com/watch?v=8zopPJI8XQ0"),
     ],
-    CarSpecs(wheelbase=2.7, steerRatio=15.74, tireStiffnessFactor=0.6371),
+    # 2021+ TSS2 steering rack (EPS 8965B47070) swapped into a TSS-P Prius.
+    # steerRatio measured on-car via LiveParameters (route 9): 15.86
+    # (the assumed TSS2 value of 13.4 was ~18% off; native TSS-P is 15.74).
+    CarSpecs(wheelbase=2.7, steerRatio=15.86, tireStiffnessFactor=0.6371),
     dbc_dict('toyota_nodsu_pt_generated', 'toyota_adas'),
   )
   TOYOTA_PRIUS_V = PlatformConfig(
@@ -589,8 +592,10 @@ FW_QUERY_CONFIG = FwQueryConfig(
 
 STEER_THRESHOLD = 100
 
-# These cars have non-standard EPS torque scale factors. All others are 73
+# These cars have non-standard EPS torque scale factors. All others are 73.
+# TOYOTA_PRIUS: 73 for the swapped 2021+ TSS2 steering rack (EPS 8965B47070;
+# native TSS-P is 66).
 EPS_SCALE = defaultdict(lambda: 73,
-                        {CAR.TOYOTA_PRIUS: 66, CAR.TOYOTA_COROLLA: 88, CAR.LEXUS_IS: 77, CAR.LEXUS_RC: 77, CAR.LEXUS_CTH: 100, CAR.TOYOTA_PRIUS_V: 100})
+                        {CAR.TOYOTA_PRIUS: 73, CAR.TOYOTA_COROLLA: 88, CAR.LEXUS_IS: 77, CAR.LEXUS_RC: 77, CAR.LEXUS_CTH: 100, CAR.TOYOTA_PRIUS_V: 100})
 
 DBC = CAR.create_dbc_map()

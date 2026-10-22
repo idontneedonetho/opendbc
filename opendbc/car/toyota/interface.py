@@ -1,4 +1,5 @@
 from opendbc.car import Bus, structs, get_safety_config, uds
+from opendbc.car.interfaces import get_torque_params
 from opendbc.car.toyota.carstate import CarState
 from opendbc.car.toyota.carcontroller import CarController
 from opendbc.car.toyota.radar_interface import RadarInterface
@@ -59,14 +60,25 @@ class CarInterface(CarInterfaceBase):
 
     if candidate == CAR.TOYOTA_PRIUS:
       stop_and_go = True
-      # Only give steer angle deadzone to for bad angle sensor prius
+      # 2021+ TSS2 steering rack (EPS 8965B47070) swapped into a TSS-P car:
+      # keep torque control on the TSS-P DBC (sDSU long stays enabled) and
+      # treat the EPS like the native TSS2 rack — no dashcam gate, no
+      # bad-angle-sensor delay/deadzone.
+      swapped_tss2_rack = any(fw.ecu == "eps" and fw.fwVersion == b'8965B47070\x00\x00\x00\x00\x00\x00'
+                              for fw in car_fw)
+      # Only give steer angle deadzone to bad angle sensor prius
       for fw in car_fw:
-        if fw.ecu == "eps" and not fw.fwVersion == b'8965B47060\x00\x00\x00\x00\x00\x00':
+        if fw.ecu == "eps" and not fw.fwVersion == b'8965B47060\x00\x00\x00\x00\x00\x00' and not swapped_tss2_rack:
           ret.steerActuatorDelay = 0.25
           CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning, steering_angle_deadzone_deg=0.2)
-        # 2021+ TSS2 steering rack swapped into a TSS-P car, not supported
-        if fw.ecu == "eps" and fw.fwVersion == b'8965B47070\x00\x00\x00\x00\x00\x00':
-          ret.dashcamOnly = True
+
+      if swapped_tss2_rack:
+        # Use native TOYOTA_PRIUS_TSS2 lateral torque parameters (latAccelFactor,
+        # friction, maxLateralAccel) to match the stiffer TSS2 steering rack.
+        tss2 = get_torque_params()['TOYOTA_PRIUS_TSS2']
+        ret.lateralTuning.torque.latAccelFactor = tss2['LAT_ACCEL_FACTOR']
+        ret.lateralTuning.torque.friction = tss2['FRICTION']
+        ret.maxLateralAccel = tss2['MAX_LAT_ACCEL_MEASURED']
 
     elif candidate in (CAR.LEXUS_RX, CAR.LEXUS_RX_TSS2):
       stop_and_go = True
